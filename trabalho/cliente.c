@@ -104,6 +104,7 @@ void verificar_enviar_sinal(Consulta c) {
     verificar_enviar_sinal(c);
   }
   else {
+    printf("Pedido de consulta registado\n");
     escrita_pedido_consulta(c);
     kill(get_srv_pid(), SIGUSR1);
   }
@@ -122,13 +123,8 @@ int main() {
   signal(SIGUSR2, SIGUSR2_handler);
   signal(SIGHUP, SIGHUP_handler);
   signal(SIGTERM, SIGTERM_handler);
-  char s[100];
   while (1) {
-    fgets(s, 100, stdin);
-    s[strlen(s) - 1] = 0;
-    if (strcmp(s, "sair") == 0)
-      exit(0);
+    pause();
   }
-
   return 0;
 }        

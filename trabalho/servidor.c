@@ -7,7 +7,6 @@
 #include <sys/wait.h>
 
 Consulta lista_consultas[10];
-int run = 0;
 int n = 0;
 int tipo1 = 0;
 int tipo2 = 0;
@@ -70,14 +69,12 @@ void SIGUSR1_handler(int sinal) {
   else {
     int i;
     for (i = 0; i != 10; i++) {
-      printf("i = %d\n", i);
       if (lista_consultas[i].tipo == -1) {
         lista_consultas[i].tipo = tipo;
         strncpy(lista_consultas[i].descricao, descricao, 100);
         lista_consultas[i].pid_consulta = pid;
 
         printf("Consulta agendada para a sala %d\n", i);
-        printf("%d, %s, %d\n", lista_consultas[i].tipo, lista_consultas[i].descricao, lista_consultas[i].pid_consulta);
         n++;
         switch (tipo) {
         case 1: tipo1++;break;
@@ -121,12 +118,8 @@ int main() {
   signal(SIGUSR1, SIGUSR1_handler);
   signal(SIGINT, SIGINT_handler);
 
-  char s[100];
-  while (run == 0) {
-    fgets(s, 100, stdin);
-    s[strlen(s) - 1] = 0;
-    if (strcmp(s, "sair") == 0)
-      exit(0);
+  while (1) {
+    pause();
   }
   return 0;
 }
