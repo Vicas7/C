@@ -7,7 +7,6 @@
 #include <sys/wait.h>
 
 Consulta lista_consultas[10];
-int run = 0;
 int n = 0;
 int tipo1 = 0;
 int tipo2 = 0;
@@ -119,12 +118,8 @@ int main() {
   signal(SIGUSR1, SIGUSR1_handler);
   signal(SIGINT, SIGINT_handler);
 
-  char s[100];
-  while (run == 0) {
-    fgets(s, 100, stdin);
-    s[strlen(s) - 1] = 0;
-    if (strcmp(s, "sair") == 0)
-      exit(0);
+  while (1) {
+    pause();
   }
   return 0;
 }
