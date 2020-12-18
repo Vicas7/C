@@ -70,14 +70,12 @@ void SIGUSR1_handler(int sinal) {
   else {
     int i;
     for (i = 0; i != 10; i++) {
-      printf("i = %d\n", i);
       if (lista_consultas[i].tipo == -1) {
         lista_consultas[i].tipo = tipo;
         strncpy(lista_consultas[i].descricao, descricao, 100);
         lista_consultas[i].pid_consulta = pid;
 
         printf("Consulta agendada para a sala %d\n", i);
-        printf("%d, %s, %d\n", lista_consultas[i].tipo, lista_consultas[i].descricao, lista_consultas[i].pid_consulta);
         n++;
         switch (tipo) {
         case 1: tipo1++;break;
