@@ -30,5 +30,10 @@ typedef struct {
   Consulta consulta;
 } Mensagem;
 
+typedef struct {
+  Consulta lista_consultas[10];
+  int contadores[4]; // 0- Normal, 1- Covid-19, 2- Urgente, 4- Perdidas
+} Memoria;
+
 
 #endif

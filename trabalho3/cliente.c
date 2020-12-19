@@ -27,19 +27,18 @@ Consulta obter_consulta() {
 
 void cancela_consulta() {
   int msg_id = msgget(IPC_KEY, 0);
-  exit_on_error(msg_id, "[cliente] Erro a ligar a msg");
+  exit_on_error(msg_id, "[Cliente] Erro a ligar a msg");
 
   Mensagem m;
   m.tipo = getpid();
-  m.consulta.tipo = 5;
-
+  m.consulta.status = 5;
   int status;
   status = msgsnd(msg_id, &m, sizeof(m.consulta), 0);
   exit_on_error(status, "erro ao enviar");
 }
 
 void SIGINT_handler(int sinal) {
-  printf("Paciente cancelou o pedido\n");
+  printf("[Cliente] Paciente cancelou o pedido\n");
   cancela_consulta();
   exit(1);
 }
@@ -51,7 +50,7 @@ int main() {
   Consulta c = obter_consulta();
 
   int msg_id = msgget(IPC_KEY, 0);
-  exit_on_error(msg_id, "[cliente] Erro a ligar a msg");
+  exit_on_error(msg_id, "[Cliente] Erro a ligar a msg");
 
   Mensagem m;
   m.tipo = 1;

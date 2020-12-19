@@ -1,8 +1,13 @@
 #include "clinic-iul.h"
+Memoria memoria;
 
-Consulta lista_consultas[10];
 
-Consulta* iniciar() {
+// ! --------------------------------
+// TODO: Remover comentários de debug 
+// ! --------------------------------
+
+
+Memoria* iniciar() {
   // Cria um semáforo para sincronização
   int sem_id = semget(IPC_KEY, 1, IPC_CREAT | 0666);
   exit_on_error(sem_id, "semget");
@@ -12,20 +17,20 @@ Consulta* iniciar() {
   int status = semctl(sem_id, 0, SETVAL, 0);
   exit_on_error(status, "semctl(SETVAL)");
 
-  // TODO Fazer as duas memorias. Tratar da parte do contador
   // Cria | conecta a zona de memória partilhada
-  int mem_id = shmget(IPC_KEY, 10 * sizeof(Consulta), 0);
+
+  int mem_id = shmget(IPC_KEY, sizeof(memoria), 0);
   if (mem_id < 0)
-    mem_id = shmget(IPC_KEY, 10 * sizeof(Consulta), IPC_EXCL | IPC_CREAT | 0666);
-  exit_on_error(mem_id, "shmget");
+    mem_id = shmget(IPC_KEY, sizeof(memoria), IPC_EXCL | IPC_CREAT | 0666);
+  exit_on_error(mem_id, "shmget1");
 
   // Obtém o apontador para a zona de memória partilhada
-  Consulta* c = (Consulta*)shmat(mem_id, NULL, 0);
-  exit_on_null(c, "shmat");
+  Memoria* mem = (Memoria*)shmat(mem_id, NULL, 0);
+  exit_on_null(mem, "shmat");
 
   // Inicializa os valores
   for (int i = 0; i < 10; i++) {
-    c[i].tipo = -1;
+    mem->lista_consultas[i].tipo = -1;
   }
   printf("Memória iniciada id=%d\n", mem_id);
 
@@ -33,34 +38,49 @@ Consulta* iniciar() {
   // processos possam aceder à zona de memória partilhada
   status = semctl(sem_id, 0, SETVAL, 1);
   exit_on_error(status, "semctl(SETVAL)");
-  return c;
+  return mem;
 }
 
-void remover_consulta(int posicao, Consulta* c) {
-  int i;
-  for (i = posicao; i < 9; i++) {
-    if (c[i + 1].tipo > 0) {
-      c[i] = c[i + 1];
-    }
-    else {
-      break;
-    }
-  }
-  c[i].tipo = -1;
+void remover_consulta(int posicao, Memoria* mem) {
+  mem->lista_consultas[posicao].tipo = -1;
+}
+
+void SIGINT_handler(int sinal) {
+  printf("\nA encerrar servidor...\n\n");
+  // Obter identificador da memória partilhada
+  int mem_id = shmget(IPC_KEY, sizeof(memoria), 0);
+  exit_on_error(mem_id, "shmget2");
+
+  // Obter o apontador para a zona de memória partilhada
+  Memoria* mem = (Memoria*)shmat(mem_id, NULL, 0);
+  exit_on_null(mem, "shmat");
+
+  printf("-------------- Estatísticas --------------\n");
+  printf("| Normal | Covid-19 | Urgente | Perdidas |\n");
+  printf("|   %d    |    %d     |    %d    |    %d     |\n", mem->contadores[0], mem->contadores[1], mem->contadores[2], mem->contadores[3]);
+  printf("------------------------------------------\n");
+  exit(1);
 }
 
 int main() {
-  iniciar();
-  int mem_id = shmget(IPC_KEY, 10 * sizeof(Consulta), 0);
-  exit_on_error(mem_id, "shmget");
+  signal(SIGINT, SIGINT_handler);
 
-  // Obtém o apontador para a zona de memória partilhada
-  Consulta* c = (Consulta*)shmat(mem_id, NULL, 0);
-  exit_on_null(c, "shmat");
+  iniciar();
+  // Obter identificador da memória partilhada
+  int mem_id = shmget(IPC_KEY, sizeof(memoria), 0);
+  exit_on_error(mem_id, "shmget3");
+
+  // Obter o apontador para a zona de memória partilhada
+  Memoria* mem = (Memoria*)shmat(mem_id, NULL, 0);
+  exit_on_null(mem, "shmat");
 
   // Obter identificador do semáforo
   int sem_id = semget(IPC_KEY, 1, 0);
   exit_on_error(sem_id, "semget");
+
+  // Especificar UP and DOWN
+  struct sembuf UP = { .sem_op = +1 };
+  struct sembuf DOWN = { .sem_op = -1 };
 
   // Obter identificador da mail list
   int msg_id = msgget(IPC_KEY, IPC_CREAT | IPC_EXCL | 0666);
@@ -84,28 +104,32 @@ int main() {
 
       // Baixar o valor do semáforo
       // (caso o semáforo esteja a zero o processo fica em espera)
-      struct sembuf DOWN = { .sem_op = -1 };
       int status = semop(sem_id, &DOWN, 1);
       exit_on_error(status, "DOWN");
+      printf("DENTRO\n");
 
       // Verifica se a lista está cheia
       int i;
-      if (c[9].tipo != -1) {
-        printf("Lista de consultas cheia");
-        m.tipo = m.consulta.pid_consulta;
-        m.consulta.status = 4;
-        status = msgsnd(IPC_EXCL, &m, sizeof(m.consulta), 0);
-        exit_on_error(status, "Erro ao enviar tipo 4\n");
-        exit(0);
-        // TODO Incrementar contador de consultas perdidas
+      for (i = 0; i <= 10; i++) {
+        if (mem->lista_consultas[i].tipo == -1)
+          break;
+        if (i == 10) {
+          printf("Lista de consultas cheia");
+          m.tipo = m.consulta.pid_consulta;
+          m.consulta.status = 4;
+          status = msgsnd(IPC_EXCL, &m, sizeof(m.consulta), 0);
+          exit_on_error(status, "Erro ao enviar tipo 4\n");
+          mem->contadores[3]++;
+          exit(0);
+        }
       }
 
       // Encontra uma sala vazia e agenda consulta
       for (i = 0; i < 10; i++) {
-        if (c[i].tipo == -1) {
-          c[i] = m.consulta;
+        if (mem->lista_consultas[i].tipo == -1) {
+          mem->lista_consultas[i] = m.consulta;
+          mem->contadores[m.consulta.tipo - 1]++;
           printf("[Servidor] Consulta agendada para a sala %d\n", i);
-          // TODO Incrementear o contador do tipo correspondente 
 
           // Comunica com o cliente
           m.tipo = m.consulta.pid_consulta;
@@ -114,12 +138,35 @@ int main() {
           exit_on_error(status, "Erro ao enviar status 2\n");
 
           // Sobe o valor do semáforo
-          struct sembuf UP = { .sem_op = +1 };
           status = semop(sem_id, &UP, 1);
           exit_on_error(status, "UP");
+          printf("FORA\n");
 
           // Aguarda conclusão de consulta
-          sleep(DURACAO);
+          int count = 0;
+          while (count < DURACAO) {
+            sleep(1);
+            printf("PID da consulta : %d\n", m.consulta.pid_consulta);
+            status = msgrcv(msg_id, &m, sizeof(m.consulta), m.consulta.pid_consulta, IPC_NOWAIT);
+            if (m.consulta.status == 5) {
+
+              // Baixa o valor do semáforo
+              int status = semop(sem_id, &DOWN, 1);
+              exit_on_error(status, "DOWN");
+              printf("DENTRO\n");
+
+              remover_consulta(i, mem);
+
+              // Sobe o valor do semáforo
+              status = semop(sem_id, &UP, 1);
+              exit_on_error(status, "UP");
+              printf("FORA\n");
+
+              printf("Consulta cancelada pelo utilizador %ld\n", m.tipo);
+              exit(1);
+            }
+            count++;
+          }
 
           printf("[Servidor] Consulta terminada na sala %d\n", i);
           m.consulta.status = 3;
@@ -127,25 +174,24 @@ int main() {
           exit_on_error(status, "Erro ao enviar status 3\n");
 
           // Baixa o valor do semáforo
-          struct sembuf DOWN = { .sem_op = -1 };
           int status = semop(sem_id, &DOWN, 1);
           exit_on_error(status, "DOWN");
+          printf("DENTRO\n");
 
           // Remover consulta da lista
-          remover_consulta(i, c);
+          printf("A remover consulta na posição %d\n", i);
+          // TODO: REMOVER SLEEP
+          sleep(7);
+          remover_consulta(i, mem);
 
           // Sobe o valor do semáforo
-          struct sembuf UP = { .sem_op = +1 };
           status = semop(sem_id, &UP, 1);
           exit_on_error(status, "UP");
+          printf("FORA\n");
 
           exit(0);
         }
       }
     }
-
-
-
-
   }
 }

@@ -1,4 +1,5 @@
 #include "clinic-iul.h"
+Memoria memoria;
 
 int main() {
   // int id = msgget(IPC_KEY, 0);
@@ -29,7 +30,7 @@ int main() {
   // exit(0);
 
 
-  int shm_id = shmget(IPC_KEY, 4 * sizeof(int) + 10 * sizeof(Consulta), 0);
+  int shm_id = shmget(IPC_KEY, sizeof(memoria), 0);
   exit_on_error(shm_id, "shmget");
 
   Consulta* c = (Consulta*)shmat(shm_id, NULL, 0);
@@ -38,4 +39,10 @@ int main() {
   for (int i = 0; i < 10; i++) {
     printf("Consulta %d: Tipo - %d\n", i, c[i].tipo);
   }
+
+  int sem_id = semget(IPC_KEY, 1, 0);
+  exit_on_error(sem_id, "semget");
+
+  int val = semctl(sem_id, 0, GETVAL);
+  printf("O valor do semáforo é : %d\n", val);
 }
