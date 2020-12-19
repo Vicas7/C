@@ -64,6 +64,7 @@ void SIGINT_handler(int sinal) {
 
 int main() {
   signal(SIGINT, SIGINT_handler);
+  signal(SIGCHLD, SIG_IGN);
 
   iniciar();
   // Obter identificador da memória partilhada
@@ -96,11 +97,11 @@ int main() {
     exit_on_error(status, "Erro ao receber");
     printf("[Servidor] Chegou novo pedido de consulta do tipo %d, descrição %s e PID %d\n", m.consulta.tipo, m.consulta.descricao, m.consulta.pid_consulta);
 
-
     int child_pid = fork();
     exit_on_error(child_pid, "Erro na criação de servidor dedicado");
     if (child_pid == 0) {
       // Processo dedicado
+      signal(SIGINT, SIG_IGN);
 
       // Baixar o valor do semáforo
       // (caso o semáforo esteja a zero o processo fica em espera)
@@ -131,16 +132,17 @@ int main() {
           mem->contadores[m.consulta.tipo - 1]++;
           printf("[Servidor] Consulta agendada para a sala %d\n", i);
 
+          // Sobe o valor do semáforo
+          status = semop(sem_id, &UP, 1);
+          exit_on_error(status, "UP");
+          printf("FORA\n");
+
           // Comunica com o cliente
           m.tipo = m.consulta.pid_consulta;
           m.consulta.status = 2;
           status = msgsnd(msg_id, &m, sizeof(m.consulta), 0);
           exit_on_error(status, "Erro ao enviar status 2\n");
 
-          // Sobe o valor do semáforo
-          status = semop(sem_id, &UP, 1);
-          exit_on_error(status, "UP");
-          printf("FORA\n");
 
           // Aguarda conclusão de consulta
           int count = 0;
@@ -148,7 +150,7 @@ int main() {
             sleep(1);
             printf("PID da consulta : %d\n", m.consulta.pid_consulta);
             status = msgrcv(msg_id, &m, sizeof(m.consulta), m.consulta.pid_consulta, IPC_NOWAIT);
-            if (m.consulta.status == 5) {
+            if (m.consulta.status == 5 && status != -1) {
 
               // Baixa o valor do semáforo
               int status = semop(sem_id, &DOWN, 1);

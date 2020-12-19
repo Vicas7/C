@@ -32,7 +32,7 @@ typedef struct {
 
 typedef struct {
   Consulta lista_consultas[10];
-  int contadores[4]; // 0- Normal, 1- Covid-19, 2- Urgente, 4- Perdidas
+  int contadores[4]; // 0- Normal, 1- Covid-19, 2- Urgente, 3- Perdidas
 } Memoria;
 
 
